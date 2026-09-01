@@ -111,6 +111,24 @@
       font-size: 16px;
       line-height: 1.75;
     }
+    .agent .doc-download {
+      display: inline-flex;
+      margin: 12px 0 2px 24px;
+      padding: 10px 18px;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 999px;
+      color: rgba(252,253,251,.92);
+      background: rgba(255,255,255,.07);
+      font-size: 13px;
+      text-decoration: none;
+      letter-spacing: .02em;
+      transition: background .2s ease, border-color .2s ease, transform .2s ease;
+    }
+    .agent .doc-download:hover {
+      background: rgba(255,255,255,.13);
+      border-color: rgba(255,255,255,.36);
+      transform: translateY(-1px);
+    }
     .user .bubble {
       padding: 13px 17px;
       border: 1px solid rgba(255,255,255,.08);
@@ -985,6 +1003,12 @@
       return value.replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
     }
 
+    // Agent 文本渲染：隐藏【文档请求】标记行；开场白是受控 HTML，其余转义
+    function renderAgentText(text, isOpening) {
+      const visible = text.replace(/【文档请求】[^\n]*/g, '').trim();
+      return isOpening ? visible : escapeHtml(visible).replace(/\n/g, '<br>');
+    }
+
     function addMessage(role, text) {
       const row = document.createElement('div');
       row.className = `message ${role}`;
@@ -1049,14 +1073,23 @@
               const delta = event.choices?.[0]?.delta?.content;
               if (delta) {
                 acc += delta;
-                bubble.innerHTML = isOpening ? acc : escapeHtml(acc).replace(/\n/g, '<br>');
+                bubble.innerHTML = renderAgentText(acc, isOpening);
                 scrollConversation();
               }
             } catch {}
           }
         }
         if (!acc) bubble.innerHTML = isOpening ? '…' : escapeHtml('…');
-        chatHistory.push({ role: 'assistant', content: acc });
+        const docMatch = acc.match(/【文档请求】([a-z]+)\|([^【】\n]{1,40})/);
+        if (docMatch) {
+          const link = document.createElement('a');
+          link.className = 'doc-download';
+          link.href = `/api/v1/tutorials/generate?topic=${encodeURIComponent(docMatch[1])}&model=${encodeURIComponent(docMatch[2].trim())}`;
+          link.textContent = '下载完整图文教程（DOCX）';
+          row.appendChild(link);
+        }
+        // 历史里不保留标记行，避免模型后续模仿
+        chatHistory.push({ role: 'assistant', content: acc.replace(/【文档请求】[^\n]*/g, '').trim() });
       } catch {
         bubble.innerHTML = escapeHtml('网络出了点问题，请稍后再试，或直接联系李俊贤 17695989770。');
       } finally {
