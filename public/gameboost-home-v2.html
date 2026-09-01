@@ -978,7 +978,7 @@
     const input = document.getElementById('input');
     const conversation = document.getElementById('conversation');
     const modelNote = document.querySelector('.model-note');
-    let history = [];
+    let chatHistory = [];
     let agentFlare = 0;
 
     function escapeHtml(value) {
@@ -1010,13 +1010,14 @@
       conversation.appendChild(row);
       scrollConversation();
 
-      const isOpening = history.length === 0;
+      // 服务端在消息只有一条时返回固定开场白；此时 chatHistory 已包含刚发的 user 消息
+      const isOpening = chatHistory.length <= 1;
       let acc = '';
       try {
         const res = await fetch('/api/v1/agent', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ messages: history.slice(-12) })
+          body: JSON.stringify({ messages: chatHistory.slice(-12) })
         });
 
         const model = res.headers.get('x-agent-model');
@@ -1055,7 +1056,7 @@
           }
         }
         if (!acc) bubble.innerHTML = isOpening ? '…' : escapeHtml('…');
-        history.push({ role: 'assistant', content: acc });
+        chatHistory.push({ role: 'assistant', content: acc });
       } catch {
         bubble.innerHTML = escapeHtml('网络出了点问题，请稍后再试，或直接联系李俊贤 17695989770。');
       } finally {
@@ -1072,7 +1073,7 @@
       if (!value || input.disabled) return;
       if (!app.classList.contains('chatting')) app.classList.add('chatting');
       addMessage('user', escapeHtml(value));
-      history.push({ role: 'user', content: value });
+      chatHistory.push({ role: 'user', content: value });
       input.value = '';
       input.style.height = '54px';
       reply();
