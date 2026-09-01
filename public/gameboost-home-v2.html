@@ -840,6 +840,96 @@
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
     }
+
+    .contact-screen {
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .contact-card {
+      width: min(430px, 100%);
+      padding: 46px 42px 40px;
+      display: grid;
+      justify-items: center;
+      gap: 10px;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,.13);
+      border-radius: 26px;
+      background: rgba(21,24,27,.6);
+      backdrop-filter: blur(22px) saturate(130%);
+      box-shadow: 0 30px 90px rgba(0,0,0,.5), inset 0 1px rgba(255,255,255,.06);
+    }
+    .contact-card .eyebrow {
+      color: rgba(236,239,233,.42);
+      font: 600 9px/1.4 ui-monospace, "SFMono-Regular", Consolas, monospace;
+      letter-spacing: .22em;
+    }
+    .contact-card h2 {
+      margin: 4px 0 0;
+      color: rgba(248,249,247,.96);
+      font-size: clamp(30px, 6vw, 42px);
+      font-weight: 560;
+      letter-spacing: .06em;
+    }
+    .contact-role {
+      margin: 0 0 18px;
+      color: rgba(232,235,229,.5);
+      font-size: 12px;
+      letter-spacing: .08em;
+    }
+    .contact-wechat {
+      display: grid;
+      gap: 6px;
+      padding: 16px 22px;
+      border: 1px dashed rgba(255,255,255,.18);
+      border-radius: 16px;
+      background: rgba(255,255,255,.04);
+    }
+    .contact-wechat span {
+      color: rgba(236,239,233,.45);
+      font-size: 11px;
+      letter-spacing: .14em;
+    }
+    .contact-wechat strong {
+      color: rgba(252,253,251,.95);
+      font: 600 26px/1.3 ui-monospace, "SFMono-Regular", Consolas, monospace;
+      letter-spacing: .06em;
+    }
+    .contact-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .copy-wechat, .contact-tel {
+      padding: 11px 20px;
+      border-radius: 999px;
+      font-size: 13px;
+      text-decoration: none;
+      transition: background .2s ease, border-color .2s ease, transform .2s ease;
+    }
+    .copy-wechat {
+      border: 1px solid rgba(255,255,255,.22);
+      color: rgba(252,253,251,.94);
+      background: rgba(255,255,255,.08);
+      cursor: pointer;
+    }
+    .copy-wechat:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.38); transform: translateY(-1px); }
+    .contact-tel {
+      border: 1px solid rgba(255,255,255,.12);
+      color: rgba(245,247,243,.66);
+      background: transparent;
+    }
+    .contact-tel:hover { color: rgba(255,255,255,.9); border-color: rgba(255,255,255,.26); }
+    .contact-note {
+      margin-top: 14px;
+      color: rgba(235,238,233,.3);
+      font-size: 11px;
+      line-height: 1.7;
+      letter-spacing: .03em;
+    }
+    .contact-qr-placeholder {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -850,6 +940,7 @@
     <a class="active" href="#agent" aria-label="GameBoost Agent"></a>
     <a href="#gameboost-download" aria-label="GameBoost 下载"></a>
     <a href="#honestmix-download" aria-label="HonestMix 下载"></a>
+    <a href="#contact" aria-label="联系李俊贤"></a>
   </nav>
 
   <main class="site-shell">
@@ -949,6 +1040,23 @@
         <a class="product-open" href="#honestmix-download" data-inspect="honestmix-download">查看清晰插件界面</a>
       </div>
       <button class="inspect-exit" type="button" data-inspect-exit>返回下载</button>
+    </section>
+
+    <section class="screen contact-screen" id="contact" data-section>
+      <div class="contact-card">
+        <span class="eyebrow">HUMAN CONTACT</span>
+        <h2>李俊贤</h2>
+        <p class="contact-role">GameBoost × HonestMix · 独立开发者</p>
+        <div class="contact-wechat">
+          <span>微信 / 手机同号</span>
+          <strong id="wechatId">17695989770</strong>
+        </div>
+        <div class="contact-actions">
+          <button class="copy-wechat" type="button" data-copy-wechat data-copy="17695989770">复制微信号</button>
+          <a class="contact-tel" href="tel:17695989770">拨打 / 手机号</a>
+        </div>
+        <small class="contact-note">添加时简单说明来意（GameBoost / HonestMix / 混音），回复可能稍慢。<br>微信二维码添加方式后续会放在这里。</small>
+      </div>
     </section>
   </main>
 
@@ -1137,6 +1245,22 @@
       pageDots.forEach(dot => dot.classList.toggle('active', dot.getAttribute('href') === `#${visible.target.id}`));
     }, { threshold: [.35, .58, .76] });
     sections.forEach(section => sectionObserver.observe(section));
+
+    function showNotice(text) {
+      window.clearTimeout(noticeTimer);
+      downloadNotice.textContent = text;
+      downloadNotice.classList.add('show');
+      noticeTimer = window.setTimeout(() => downloadNotice.classList.remove('show'), 2600);
+    }
+    document.querySelectorAll('[data-copy-wechat]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.copy || '';
+        if (navigator.clipboard) {
+          try { await navigator.clipboard.writeText(id); } catch {}
+        }
+        showNotice(`已复制微信号：${id} · 打开微信搜索即可添加`);
+      });
+    });
 
     document.querySelectorAll('[data-download]').forEach(button => {
       button.addEventListener('click', async () => {
