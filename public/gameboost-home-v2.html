@@ -484,10 +484,6 @@
     }
     .product-screen.is-inspecting .inspect-exit { opacity: 1; pointer-events: auto; }
     .product-screen.is-inspecting .product-frame {
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      transform: none;
       pointer-events: auto;
     }
 
@@ -1082,14 +1078,36 @@
       });
     });
 
+    // 控制台原型是固定 1180×920 设计稿：展开时按容器等比缩放，完整显示、不出现滚动
+    function fitGameBoostFrame(section) {
+      const frame = section.querySelector('.product-frame');
+      const art = section.querySelector('.product-art');
+      if (!frame || !art) return;
+      const scale = Math.min(art.clientWidth / 1180, art.clientHeight / 920, 1);
+      frame.style.transform = `translate(-50%, -50%) scale(${scale.toFixed(3)})`;
+    }
+    function resetGameBoostFrame(section) {
+      const frame = section.querySelector('.product-frame');
+      if (frame) frame.style.transform = '';
+    }
     document.querySelectorAll('[data-inspect]').forEach(link => {
       link.addEventListener('click', event => {
         event.preventDefault();
-        document.getElementById(link.dataset.inspect)?.classList.add('is-inspecting');
+        const section = document.getElementById(link.dataset.inspect);
+        section?.classList.add('is-inspecting');
+        if (link.dataset.inspect === 'gameboost-download') fitGameBoostFrame(section);
       });
     });
     document.querySelectorAll('[data-inspect-exit]').forEach(button => {
-      button.addEventListener('click', () => button.closest('.product-screen')?.classList.remove('is-inspecting'));
+      button.addEventListener('click', () => {
+        const section = button.closest('.product-screen');
+        section?.classList.remove('is-inspecting');
+        resetGameBoostFrame(section);
+      });
+    });
+    window.addEventListener('resize', () => {
+      const section = document.querySelector('#gameboost-download.is-inspecting');
+      if (section) fitGameBoostFrame(section);
     });
 
     document.querySelectorAll('[data-dialog]').forEach(button => {
