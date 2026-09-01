@@ -977,21 +977,9 @@
     const form = document.getElementById('composer');
     const input = document.getElementById('input');
     const conversation = document.getElementById('conversation');
-    let turn = 0;
+    const modelNote = document.querySelector('.model-note');
+    let history = [];
     let agentFlare = 0;
-
-    const dialogue = [
-      `<p>你好，我是 GameBoost × HonestMix Agent，一名仍在学习中的 AI 助手，由李俊贤负责开发、审核与改进。这里不会催你购买方案，也不会根据一句话就给电脑或声音下结论；我想先把问题听明白，再把复杂技术翻译成你能理解、能够验证的内容。</p><p><strong>GameBoost</strong> 面向游戏电脑性能诊断：EXE 记录真实游玩时的帧时间、温度、功耗、频率、内存、显存和显示环境，再由 Agent 解释“卡在哪里”，最后交给李俊贤审核。服务器案例与自动更新正在搭建；目前你也可以不聊天，直接向下下载，照常玩一局后导出 .gbsample。</p><p><strong>HonestMix</strong> 是正在开发中的耳机监听校正与混音辅助插件，目前只开放免费、非商业 BETA。它不会替你做审美决定，而是帮助监听更可信、让问题更容易被听见；所用的专业测量数据会保留作者署名与授权说明。</p><p>在你同意后，去除手机号、微信号等直接联系方式的问题描述、设备情况与使用反馈，可能用于继续完善属于 GameBoost 和 HonestMix 的专属 Agent。对话不会自动执行系统或音频工程修改；任何优化结论都需要结合真实证据，重要动作由李俊贤人工审核，并尽可能支持撤销。</p><p>你可以从一句“哪里不舒服”开始，也可以直接下载，不必一次说完整。需要真人帮助时：李俊贤，微信 / 手机同号 <a href="tel:17695989770">17695989770</a>。</p>`,
-      '大概多久恢复？那段时间是画面一顿一顿、完全卡住，还是帧率低但还能操作？声音有没有一起卡？',
-      '听起来更接近帧时间不稳定，而不只是平均 FPS 低。不过现在还不能下结论。刚开游戏就这样，还是玩一会儿后更明显？',
-      '这个信息很重要。我会优先检查温度、频率和功耗是否随着时间失稳，但仍要用采样确认。你是插电玩吗？现在开什么性能模式？',
-      '明白。有没有外接屏幕？如果有，告诉我分辨率和刷新率。',
-      '外接 2K 165Hz 会改变显示路径和 GPU 负载，所以报告里必须单独标记。你更在意保住画质，还是尽量追求稳定帧时间？',
-      '收到：优先解决卡顿，画质不要明显下降。下一步不需要先改任何设置，监测一局即可。最好包含 10 分钟正常游玩和一段最卡的过场。',
-      '打开 GameBoost，开始采样，照常玩到卡顿出现；出现后再结束并导出 .gbsample。监测阶段只读取性能数据，不会自动修改系统。',
-      '回传后，我会告诉你：卡顿发生在哪些时间段，CPU/GPU 是否撞温度或功耗限制，内存与显存是否有压力，外接屏是否可能影响表现，以及哪些地方仍然不能确定。',
-      '如果最终是散热硬伤，我也会直接说明：哪些能靠软件稳定，哪些需要清灰、硅脂或硬件处理。付费优化只应用经过人工审核、可以撤销的动作。'
-    ];
 
     function escapeHtml(value) {
       return value.replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
@@ -1005,36 +993,86 @@
       conversation.scrollTo({ top: conversation.scrollHeight, behavior: 'smooth' });
     }
 
-    function addActions() {
-      if (conversation.querySelector('.actions')) return;
-      const actions = document.createElement('div');
-      actions.className = 'actions';
-      actions.innerHTML = '<a href="/gameboost">开始监测</a><a href="/r/FB66CC">查看真实报告</a>';
-      conversation.appendChild(actions);
+    function scrollConversation() {
       conversation.scrollTo({ top: conversation.scrollHeight, behavior: 'smooth' });
     }
 
-    function reply() {
-      const text = dialogue[Math.min(turn, dialogue.length - 1)];
-      turn += 1;
+    // 解析 SSE 流，逐段渲染 Agent 回复；第一轮是服务端固定开场白（受控 HTML），之后是模型纯文本
+    async function reply() {
       form.classList.add('is-waiting');
       input.disabled = true;
-      window.setTimeout(() => {
-        addMessage('agent', text);
+
+      const row = document.createElement('div');
+      row.className = 'message agent';
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      row.appendChild(bubble);
+      conversation.appendChild(row);
+      scrollConversation();
+
+      const isOpening = history.length === 0;
+      let acc = '';
+      try {
+        const res = await fetch('/api/v1/agent', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ messages: history.slice(-12) })
+        });
+
+        const model = res.headers.get('x-agent-model');
+        if (model) modelNote.textContent = `GAMEBOOST AGENT · ${model.toUpperCase()}`;
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          bubble.innerHTML = escapeHtml(err?.message || '暂时没连上我，请稍后再试，或直接联系李俊贤 17695989770。');
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let sep;
+          while ((sep = buffer.indexOf('\n\n')) !== -1) {
+            const raw = buffer.slice(0, sep);
+            buffer = buffer.slice(sep + 2);
+            const line = raw.split('\n').find(l => l.startsWith('data: '));
+            if (!line) continue;
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+            try {
+              const event = JSON.parse(data);
+              const delta = event.choices?.[0]?.delta?.content;
+              if (delta) {
+                acc += delta;
+                bubble.innerHTML = isOpening ? acc : escapeHtml(acc).replace(/\n/g, '<br>');
+                scrollConversation();
+              }
+            } catch {}
+          }
+        }
+        if (!acc) bubble.innerHTML = isOpening ? '…' : escapeHtml('…');
+        history.push({ role: 'assistant', content: acc });
+      } catch {
+        bubble.innerHTML = escapeHtml('网络出了点问题，请稍后再试，或直接联系李俊贤 17695989770。');
+      } finally {
         agentFlare = 1;
         form.classList.remove('is-waiting');
         input.disabled = false;
         input.focus();
-        if (turn >= dialogue.length) addActions();
-      }, 420);
+      }
     }
 
     form.addEventListener('submit', event => {
       event.preventDefault();
       const value = input.value.trim();
-      if (!value) return;
+      if (!value || input.disabled) return;
       if (!app.classList.contains('chatting')) app.classList.add('chatting');
       addMessage('user', escapeHtml(value));
+      history.push({ role: 'user', content: value });
       input.value = '';
       input.style.height = '54px';
       reply();
