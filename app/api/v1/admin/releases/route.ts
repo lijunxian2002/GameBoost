@@ -4,8 +4,10 @@ import {
   MAX_RELEASE_SIZE,
   SAFE_TOKEN_RE,
   VERSION_RE,
+  compareVersions,
   getBucket,
   getDb,
+  isWindowsPe,
   json,
   objectKey,
   releaseError,
@@ -91,6 +93,9 @@ export async function POST(request: Request) {
   if (bytes.length > MAX_RELEASE_SIZE) {
     return releaseError(413, 'release_too_large', `安装包超过 ${MAX_RELEASE_SIZE / 1024 / 1024} MB 上限`);
   }
+  if (!isWindowsPe(bytes)) {
+    return releaseError(400, 'invalid_installer', '安装包必须是有效 Windows PE EXE，已拒绝发布');
+  }
 
   let db: D1Database;
   let bucket: R2Bucket;
@@ -104,17 +109,32 @@ export async function POST(request: Request) {
   const key = objectKey(product, channel, platform, version);
   const id = crypto.randomUUID();
 
-  // 同一版本不能重复发布；只有从未激活的残留记录允许重试发布
+  // 版本号和对象路径都是不可变的：不接受同版本覆写，也不接受降级发布。
   const existing = await db
     .prepare('SELECT id, is_active FROM releases WHERE product = ? AND channel = ? AND platform = ? AND version = ?')
     .bind(product, channel, platform, version)
     .first<{ id: string; is_active: number }>();
   if (existing) {
-    if (existing.is_active === 1) {
-      return releaseError(409, 'release_already_published', `版本 ${version} 已经发布，不能重复发布`);
-    }
-    await db.prepare('DELETE FROM releases WHERE id = ?').bind(existing.id).run();
-    await bucket.delete(key);
+    return releaseError(409, 'release_already_exists', `版本 ${version} 已存在，版本对象不可覆盖`);
+  }
+
+  const current = await db
+    .prepare(
+      `SELECT * FROM releases
+       WHERE product = ? AND channel = ? AND platform = ? AND is_active = 1
+         AND binary_format = 'windows-pe'`,
+    )
+    .bind(product, channel, platform)
+    .all<ReleaseRow>();
+  const latest = (current.results ?? []).reduce<ReleaseRow | null>(
+    (candidate, row) => (!candidate || compareVersions(row.version, candidate.version) > 0 ? row : candidate),
+    null,
+  );
+  if (latest && compareVersions(version, latest.version) <= 0) {
+    return releaseError(409, 'version_not_newer', `新版本必须高于当前 ${latest.version}`);
+  }
+  if (minimumSupportedVersion && compareVersions(minimumSupportedVersion, version) > 0) {
+    return releaseError(400, 'invalid_version', 'minimum_supported_version 不能高于当前发布版本');
   }
 
   const sha256 = await sha256Hex(bytes);
@@ -130,7 +150,7 @@ export async function POST(request: Request) {
   try {
     await bucket.put(key, bytes, {
       httpMetadata: { contentType: 'application/octet-stream' },
-      customMetadata: { product, channel, platform, version, sha256 },
+      customMetadata: { product, channel, platform, version, sha256, binary_format: 'windows-pe' },
     });
   } catch {
     return releaseError(500, 'r2_upload_failed', '上传对象存储失败，版本未激活');
@@ -141,8 +161,8 @@ export async function POST(request: Request) {
       .prepare(
         `INSERT INTO releases
          (id, product, channel, platform, version, object_key, download_url, sha256, signature,
-          size_bytes, minimum_supported_version, mandatory, notes_url, published_at, is_active, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+          binary_format, size_bytes, minimum_supported_version, mandatory, notes_url, published_at, is_active, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
       )
       .bind(
         id,
@@ -154,6 +174,7 @@ export async function POST(request: Request) {
         `https://xiaotongcn.mom/${key}`,
         sha256,
         signature,
+        'windows-pe',
         bytes.length,
         minimumSupportedVersion,
         mandatoryHeader === '1' ? 1 : 0,

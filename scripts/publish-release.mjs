@@ -24,6 +24,21 @@ import { resolve } from 'node:path';
 const VERSION_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const CHANNELS = new Set(['stable', 'beta']);
 
+function isWindowsPe(bytes) {
+  if (bytes.length < 0x100 || bytes[0] !== 0x4d || bytes[1] !== 0x5a) return false;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const peOffset = view.getUint32(0x3c, true);
+  if (peOffset + 26 > bytes.length) return false;
+  const isPe =
+    bytes[peOffset] === 0x50 &&
+    bytes[peOffset + 1] === 0x45 &&
+    bytes[peOffset + 2] === 0 &&
+    bytes[peOffset + 3] === 0;
+  const machine = view.getUint16(peOffset + 4, true);
+  const optionalHeaderMagic = view.getUint16(peOffset + 24, true);
+  return isPe && ((machine === 0x8664 && optionalHeaderMagic === 0x20b) || (machine === 0x14c && optionalHeaderMagic === 0x10b));
+}
+
 function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -55,11 +70,12 @@ const {
   channel,
   version,
   'minimum-supported-version': minimumSupportedVersion,
-  mandatory = '0',
+  mandatory: mandatoryArg,
   'notes-url': notesUrl,
   'base-url': baseUrl = 'https://xiaotongcn.mom',
   token: tokenArg,
 } = args;
+const mandatory = mandatoryArg ?? '0';
 
 if (!filePath) fail('缺少 --file <安装包路径>');
 if (!channel) fail('缺少 --channel stable|beta');
@@ -77,6 +93,9 @@ if (!token) fail('缺少发布令牌：用 --token 或设置环境变量 RELEASE
 const absolutePath = resolve(filePath);
 const bytes = readFileSync(absolutePath);
 if (bytes.length === 0) fail('安装包是空文件');
+if (!isWindowsPe(bytes)) {
+  fail('安装包不是有效 Windows PE EXE；拒绝上传。请检查文件路径，不能把压缩包、网页或测试数据当安装包发布。');
+}
 
 const sha256 = createHash('sha256').update(bytes).digest('hex');
 console.log(`文件：${absolutePath}`);

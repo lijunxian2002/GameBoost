@@ -5,7 +5,11 @@ export const DEFAULT_PLATFORM = 'windows-x64';
 export const CHANNELS = ['stable', 'beta'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
-export const MAX_RELEASE_SIZE = 100 * 1024 * 1024;
+/**
+ * Worker 会在上传及回读校验阶段持有安装包，因此保守限制为 25 MB。
+ * 当前 GameBoost 约 1 MB；需要更大的安装包时，应改为专用分片上传流程。
+ */
+export const MAX_RELEASE_SIZE = 25 * 1024 * 1024;
 export const VERSION_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 export const SAFE_TOKEN_RE = /^[a-z0-9][a-z0-9-]*$/;
 export const FILENAME_RE =
@@ -21,6 +25,7 @@ export interface ReleaseRow {
   download_url: string;
   sha256: string;
   signature: string;
+  binary_format: string;
   size_bytes: number;
   minimum_supported_version: string | null;
   mandatory: number;
@@ -88,20 +93,94 @@ export function rowToRelease(row: ReleaseRow, origin: string) {
   };
 }
 
+interface ParsedVersion {
+  major: number;
+  minor: number;
+  patch: number;
+  prerelease: string[] | null;
+}
+
+function parseVersion(version: string): ParsedVersion {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/.exec(version);
+  if (!match) throw new Error(`invalid semantic version: ${version}`);
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+    prerelease: match[4] ? match[4].split('.') : null,
+  };
+}
+
+/** SemVer 优先级比较：返回正数表示 a 比 b 新。 */
+export function compareVersions(a: string, b: string): number {
+  const left = parseVersion(a);
+  const right = parseVersion(b);
+  for (const key of ['major', 'minor', 'patch'] as const) {
+    if (left[key] !== right[key]) return left[key] > right[key] ? 1 : -1;
+  }
+  if (left.prerelease === null && right.prerelease === null) return 0;
+  if (left.prerelease === null) return 1;
+  if (right.prerelease === null) return -1;
+  const length = Math.max(left.prerelease.length, right.prerelease.length);
+  for (let i = 0; i < length; i += 1) {
+    const l = left.prerelease[i];
+    const r = right.prerelease[i];
+    if (l === undefined) return -1;
+    if (r === undefined) return 1;
+    if (l === r) continue;
+    const lNumeric = /^\d+$/.test(l);
+    const rNumeric = /^\d+$/.test(r);
+    if (lNumeric && rNumeric) return Number(l) > Number(r) ? 1 : -1;
+    if (lNumeric) return -1;
+    if (rNumeric) return 1;
+    return l > r ? 1 : -1;
+  }
+  return 0;
+}
+
+/**
+ * 只接受 Windows PE 文件（x86 或 x64）。它不是杀毒或代码签名校验，
+ * 但能阻止随机字节、网页和错误附件被当成官方 EXE 发布。
+ */
+export function isWindowsPe(bytes: Uint8Array): boolean {
+  if (bytes.length < 0x100 || bytes[0] !== 0x4d || bytes[1] !== 0x5a) return false;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const peOffset = view.getUint32(0x3c, true);
+  if (peOffset + 26 > bytes.length) return false;
+  if (
+    bytes[peOffset] !== 0x50 ||
+    bytes[peOffset + 1] !== 0x45 ||
+    bytes[peOffset + 2] !== 0 ||
+    bytes[peOffset + 3] !== 0
+  ) {
+    return false;
+  }
+  const machine = view.getUint16(peOffset + 4, true);
+  const optionalHeaderMagic = view.getUint16(peOffset + 24, true);
+  return (
+    (machine === 0x8664 && optionalHeaderMagic === 0x20b) || // x64 PE32+
+    (machine === 0x14c && optionalHeaderMagic === 0x10b) // x86 PE32，可在 64 位 Windows 运行
+  );
+}
+
 export async function latestRelease(
   product: string,
   channel: string,
   platform: string,
 ): Promise<ReleaseRow | null> {
-  const row = await getDb()
+  const result = await getDb()
     .prepare(
       `SELECT * FROM releases
        WHERE product = ? AND channel = ? AND platform = ? AND is_active = 1
-       ORDER BY published_at DESC LIMIT 1`,
+         AND binary_format = 'windows-pe'`,
     )
     .bind(product, channel, platform)
-    .first();
-  return (row as ReleaseRow | null) ?? null;
+    .all<ReleaseRow>();
+  const rows = result.results ?? [];
+  return rows.reduce<ReleaseRow | null>(
+    (latest, row) => (!latest || compareVersions(row.version, latest.version) > 0 ? row : latest),
+    null,
+  );
 }
 
 export function json(data: unknown, status = 200, extraHeaders: Record<string, string> = {}): Response {
@@ -137,8 +216,16 @@ export function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+/** 抹平 Node/Worker 对 TypedArray.buffer 的 SharedArrayBuffer 类型差异。 */
+function ownedArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 export async function sha256Hex(data: ArrayBuffer | Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', data);
+  const source = data instanceof Uint8Array ? ownedArrayBuffer(data) : data;
+  const digest = await crypto.subtle.digest('SHA-256', source);
   return [...new Uint8Array(digest)]
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
@@ -157,7 +244,7 @@ export async function signRelease(sha256: string): Promise<string> {
   }
   const key = await crypto.subtle.importKey(
     'pkcs8',
-    base64ToBytes(privateKeyBase64).buffer,
+    ownedArrayBuffer(base64ToBytes(privateKeyBase64)),
     { name: 'ED25519' },
     false,
     ['sign'],

@@ -11,9 +11,11 @@
 下载地址      /releases/<R2 对象路径>          → 直接流式返回，R2 对象不可变
 ```
 
-- 数据：D1 表 `releases`（唯一约束 `(product, channel, platform, version)`，迁移在 `drizzle/`）
+- 数据：D1 表 `releases` 与 `request_limits`（迁移在 `drizzle/`）
 - 文件：R2 桶 `FILES`，对象路径 `releases/gameboost/{channel}/windows-x64/{version}/GameBoost-{version}-windows-x64.exe`
 - 旧版本永远不被覆盖：每个版本是独立对象，只有数据库的 `is_active` 指向"最新"
+- 版本选择按 SemVer 而不是发布时间；发布端拒绝同版本覆盖与版本降级
+- 只有服务器验证为 Windows PE 的安装包才可作为下载版本；所有旧的未验证记录不会再被下载入口返回
 
 ## 第一次发布前（一次性）
 
@@ -27,6 +29,10 @@ node scripts/release-keygen.mjs
 - `RELEASE_SIGNING_KEY` = base64 的 PKCS8 私钥（**只放服务器**）
 - `RELEASE_PUBLIC_KEY` = base64 公钥（将来烘焙进 EXE 更新客户端）
 - `RELEASE_TOKEN` = 一个长随机字符串，发布脚本用（例如 `openssl rand -hex 32` 生成）
+- `RATE_LIMIT_SALT` = 另一条长随机字符串，用于将访问地址变成不可逆的限流键
+- `DEEPSEEK_API_KEY` = 官网 Agent 的服务端密钥；绝不写进 HTML、EXE 或仓库
+
+在部署新代码前，先通过部署平台执行 `drizzle/0001_overjoyed_ulik.sql`。它会增加安装包格式标记与公共接口限流表；没有这次迁移，Agent、教程与下载接口会保护性失败。
 
 部署后确认 `/api/v1/releases/latest` 返回 `{"error":"release_not_found",...}`（404），说明服务已就绪。
 
@@ -41,7 +47,7 @@ node scripts/publish-release.mjs \
   --notes-url https://xiaotongcn.mom/changelog/gameboost/0.2.0
 ```
 
-（令牌优先读环境变量 `RELEASE_TOKEN`，避免进命令行历史。）
+（令牌优先读环境变量 `RELEASE_TOKEN`，避免进命令行历史。）安装包上限为 25 MB；脚本会先检查它确实是 Windows PE 文件，再上传。
 
 脚本做的事：本机算 SHA-256 → 上传 → 服务器再算一遍、用 `RELEASE_SIGNING_KEY` 签名 → 写入 D1 但不激活 → 从 R2 重新读回校验哈希 → 全部通过才激活为 latest。任何一步失败，旧版本不受影响。
 
@@ -62,8 +68,10 @@ curl -s "https://xiaotongcn.mom/api/v1/releases/latest?channel=beta"
 
 - 私钥、令牌只在服务器环境值里，不在代码、日志或仓库里
 - 发布接口拒绝没有令牌的请求；令牌比较是常数时间的
+- 发布接口拒绝随机文件、网页、压缩包等非 Windows PE 内容；同版本不可覆写，低版本不可覆盖新版
 - 下载地址只在响应里按请求来源生成，不把域名写死在页面里
 - 校验失败（哈希不一致）的版本永远不会成为 latest
+- 官网 Agent 每个地址 10 分钟最多 12 次，教程生成每 30 分钟最多 4 次；限流依赖失效时会暂停高成本接口，而不是继续扣模型额度
 
 ## 已知边界（P1 再做）
 
