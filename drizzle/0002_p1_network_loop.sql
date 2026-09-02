@@ -1,0 +1,9 @@
+CREATE TABLE `installations` (`id` text PRIMARY KEY NOT NULL, `app_version` text NOT NULL, `created_at` text NOT NULL, `last_seen_at` text NOT NULL);
+CREATE TABLE `cases` (`id` text PRIMARY KEY NOT NULL, `case_code` text NOT NULL UNIQUE, `installation_id` text NOT NULL, `player_description` text NOT NULL DEFAULT '', `status` text NOT NULL DEFAULT 'received', `view_token_hash` text NOT NULL, `view_token_used_at` text, `created_at` text NOT NULL, `updated_at` text NOT NULL);
+CREATE INDEX `cases_installation_idx` ON `cases` (`installation_id`);
+CREATE TABLE `samples` (`id` text PRIMARY KEY NOT NULL, `case_id` text NOT NULL, `sample_id` text NOT NULL, `schema_version` text NOT NULL, `sha256` text NOT NULL, `object_key` text NOT NULL, `size_bytes` integer NOT NULL, `summary_json` text NOT NULL, `created_at` text NOT NULL, UNIQUE(`case_id`, `sample_id`));
+CREATE TABLE `reports` (`id` text PRIMARY KEY NOT NULL, `case_id` text NOT NULL, `status` text NOT NULL, `content_json` text NOT NULL, `created_at` text NOT NULL, `updated_at` text NOT NULL);
+CREATE TABLE `conversations` (`id` text PRIMARY KEY NOT NULL, `case_id` text NOT NULL, `author` text NOT NULL, `body` text NOT NULL, `created_at` text NOT NULL);
+CREATE TABLE `prescriptions` (`id` text PRIMARY KEY NOT NULL, `case_id` text NOT NULL, `sample_id` text NOT NULL, `sha256` text NOT NULL, `signature` text NOT NULL, `key_id` text NOT NULL, `object_key` text NOT NULL UNIQUE, `created_at` text NOT NULL, `revoked_at` text);
+CREATE TABLE `apply_receipts` (`id` text PRIMARY KEY NOT NULL, `case_id` text NOT NULL, `prescription_id` text NOT NULL, `installation_id` text NOT NULL, `receipt_json` text NOT NULL, `created_at` text NOT NULL);
+CREATE TABLE `audit_logs` (`id` text PRIMARY KEY NOT NULL, `event` text NOT NULL, `case_id` text, `detail` text NOT NULL, `created_at` text NOT NULL);

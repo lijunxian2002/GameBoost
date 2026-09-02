@@ -1,0 +1,9 @@
+'use client';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+
+export default function PlayerCase({ params }: { params: Promise<{ token: string }> }) {
+  const [data,setData]=useState<any>(); const [error,setError]=useState('');
+  useEffect(()=>{ params.then(({token})=>fetch(`/api/v1/cases/view/${encodeURIComponent(token)}`).then(async r=>r.ok?setData(await r.json()):setError((await r.json()).message||'链接不可用')).catch(()=>setError('网络暂不可用，请稍后重试'))); },[params]);
+  return <main className="legal-site"><header className="legal-header"><Link className="legal-logo" href="/">GAMEBOOST <span>PLAYER CASE</span></Link><Link className="legal-back" href="/gameboost">返回官网</Link></header><section className="legal-shell"><p className="legal-eyebrow">ONE-TIME CASE VIEW</p>{error?<><h1>此查看链接不可用。</h1><p className="legal-lead">{error}。一次性链接在首次成功查看后即会失效，用于保护你的采样与对话信息。</p></>:!data?<><h1>正在安全读取案例…</h1><p className="legal-lead">请勿关闭此页面。</p></>:<><h1>案例 {data.case_code}</h1><p className="legal-lead">当前状态：<b>{data.status}</b>。原始采样不会在此页面展示。</p><div className="legal-content"><section><h2>采样摘要</h2>{data.sample?<p>{data.sample.summary.game} · {data.sample.summary.device}<br/>平均 FPS {data.sample.summary.average_fps.toFixed(1)} · 低帧 {data.sample.summary.low_fps.toFixed(1)}<br/>采样 ID：{data.sample.sample_id}</p>:<p>优化师正在等待采样上传。</p>}</section><section><h2>初步报告</h2><p>{data.report?.content?.summary || '尚未生成。收到采样后，优化师会在此更新初步判断。'}</p></section><section><h2>与优化师的对话</h2>{data.conversation.length?data.conversation.map((x:any,i:number)=><p key={i}><b>{x.author==='optimizer'?'优化师':'你'}：</b>{x.body}</p>):<p>暂无消息。</p>}</section><section><h2>专属配置</h2><p>{data.prescription_available?'专属配置已准备好；请回到 GameBoost EXE 中下载并验证后应用。':'尚未生成专属配置。所有配置均会绑定本机、采样与游戏，且可一键还原。'}</p></section></div></>}</section></main>;
+}

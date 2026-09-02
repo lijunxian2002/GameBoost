@@ -53,3 +53,13 @@ export const requestLimits = sqliteTable(
   },
   (table) => [index('request_limits_expires_idx').on(table.expires_at)],
 );
+
+// P1 anonymous service loop. Hardware fingerprints are deliberately absent from
+// installations; they only exist inside a sample/config binding payload.
+export const installations = sqliteTable('installations', { id: text('id').primaryKey(), app_version: text('app_version').notNull(), created_at: text('created_at').notNull(), last_seen_at: text('last_seen_at').notNull() });
+export const cases = sqliteTable('cases', { id: text('id').primaryKey(), case_code: text('case_code').notNull(), installation_id: text('installation_id').notNull(), player_description: text('player_description').notNull(), status: text('status').notNull(), view_token_hash: text('view_token_hash').notNull(), view_token_used_at: text('view_token_used_at'), created_at: text('created_at').notNull(), updated_at: text('updated_at').notNull() });
+export const samples = sqliteTable('samples', { id: text('id').primaryKey(), case_id: text('case_id').notNull(), sample_id: text('sample_id').notNull(), schema_version: text('schema_version').notNull(), sha256: text('sha256').notNull(), object_key: text('object_key').notNull(), size_bytes: integer('size_bytes').notNull(), summary_json: text('summary_json').notNull(), created_at: text('created_at').notNull() });
+export const reports = sqliteTable('reports', { id: text('id').primaryKey(), case_id: text('case_id').notNull(), status: text('status').notNull(), content_json: text('content_json').notNull(), created_at: text('created_at').notNull(), updated_at: text('updated_at').notNull() });
+export const conversations = sqliteTable('conversations', { id: text('id').primaryKey(), case_id: text('case_id').notNull(), author: text('author').notNull(), body: text('body').notNull(), created_at: text('created_at').notNull() });
+export const prescriptions = sqliteTable('prescriptions', { id: text('id').primaryKey(), case_id: text('case_id').notNull(), sample_id: text('sample_id').notNull(), sha256: text('sha256').notNull(), signature: text('signature').notNull(), key_id: text('key_id').notNull(), object_key: text('object_key').notNull(), created_at: text('created_at').notNull(), revoked_at: text('revoked_at') });
+export const applyReceipts = sqliteTable('apply_receipts', { id: text('id').primaryKey(), case_id: text('case_id').notNull(), prescription_id: text('prescription_id').notNull(), installation_id: text('installation_id').notNull(), receipt_json: text('receipt_json').notNull(), created_at: text('created_at').notNull() });
