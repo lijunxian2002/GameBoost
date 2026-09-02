@@ -11,6 +11,7 @@ import {
   Upload,
   Zap,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 type MachineState = 'idle' | 'sampling' | 'captured' | 'profile' | 'applied';
@@ -219,6 +220,10 @@ export default function Home() {
         </footer>
       </section>
       <p className="prototype-note">INTERACTIVE UI PROTOTYPE · 点击三个实体键体验状态变化</p>
+      <section className="console-trust" aria-label="GameBoost 服务边界">
+        <div><span>READ BEFORE ACTION</span><b>采样不改系统；CFG 先由真人审核。</b><p>免费报告解释“卡在哪里”。只有确认存在合理改善空间时，才提供收费的专属配置与指导。</p></div>
+        <nav><Link href="/service">服务说明</Link><Link href="/privacy">隐私政策</Link><Link href="/terms">用户协议</Link><Link href="/data-rights">数据与投诉</Link></nav>
+      </section>
     </main>
   );
 }

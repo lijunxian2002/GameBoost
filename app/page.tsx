@@ -13,6 +13,8 @@ import {
   Sparkles,
   Wrench,
 } from 'lucide-react';
+import Link from 'next/link';
+import { SiteFooter } from '@/components/site-footer';
 
 const disciplines = [
   {
@@ -38,7 +40,7 @@ export default function Home() {
       <div className="xt-stars" aria-hidden="true" />
       <header className="xt-header">
         <a className="xt-logo" href="#top" aria-label="小同实验室首页"><span>XT</span><div><b>小同实验室</b><small>XIAOTONG LAB</small></div></a>
-        <nav><a href="#mixing">混音</a><a href="#plugins">插件开发</a><a href="#gameboost">GameBoost</a><a href="/r/8K3F7A">报告演示</a></nav>
+        <nav><a href="#mixing">混音</a><a href="#plugins">插件开发</a><a href="#gameboost">GameBoost</a><Link href="/r/8K3F7A">报告演示</Link></nav>
         <div className="xt-online"><i /> LAB ONLINE</div>
       </header>
 
@@ -47,7 +49,7 @@ export default function Home() {
           <span className="xt-kicker"><Sparkles /> SOUND · SOFTWARE · PERFORMANCE</span>
           <h1>声音、软件、性能。<br />把复杂技术，<em>调到真正好用。</em></h1>
           <p>这里不是一个 AI 聊天页面，而是俊贤持续开发和交付作品的技术工作室：混音、音频插件，以及面向玩家的电脑性能诊断。</p>
-          <div className="xt-hero-actions"><a href="#work">查看正在做的事 <ArrowRight /></a><a className="quiet" href="/r/8K3F7A">打开 GameBoost 报告</a></div>
+          <div className="xt-hero-actions"><a href="#work">查看正在做的事 <ArrowRight /></a><Link className="quiet" href="/r/8K3F7A">打开 GameBoost 报告</Link></div>
         </div>
         <div className="xt-signal-console" aria-label="工作室实时状态">
           <div className="xt-console-head"><span><i /> SIGNAL ROUTER</span><b>3 MODULES ACTIVE</b></div>
@@ -68,7 +70,7 @@ export default function Home() {
                 <div className="xt-discipline-top"><span>{item.index}</span><b>{item.stat}</b></div>
                 <div className="xt-module-icon"><Icon /></div><small>{item.eyebrow}</small><h3>{item.title}</h3><p>{item.copy}</p>
                 <ul>{item.tags.map((tag) => <li key={tag}>{tag}</li>)}</ul>
-                {item.id === 'gameboost' ? <div className="xt-card-links"><a href="/gameboost">打开控制台 <ArrowRight /></a><a href="/r/8K3F7A">查看报告</a></div> : <a className="xt-coming" href={`#${item.id}-detail`}>查看工作方向 <ArrowRight /></a>}
+                {item.id === 'gameboost' ? <div className="xt-card-links"><Link href="/gameboost">打开控制台 <ArrowRight /></Link><Link href="/r/8K3F7A">查看报告</Link></div> : <a className="xt-coming" href={`#${item.id}-detail`}>查看工作方向 <ArrowRight /></a>}
               </article>
             );
           })}
@@ -94,10 +96,10 @@ export default function Home() {
 
       <section className="xt-report-cta">
         <div className="xt-report-screen"><div className="xt-report-head"><span><i /> GAMEBOOST REPORT</span><b>CASE 8K3F7A</b></div><small>一句话结论</small><h2>平均帧率不低，<br />真正卡在<em>低谷帧稳定性。</em></h2><div className="xt-report-metrics"><span><small>MEDIAN</small><b>109.3</b></span><span><small>1% LOW</small><b>36.7</b></span><span><small>MEM PEAK</small><b>97.4%</b></span></div></div>
-        <div className="xt-report-copy"><span>GAMEBOOST / 03</span><h2>免费监测建立信任，<br />专属优化完成交付。</h2><p>玩家回传一次样本，我们给出完整动态报告。确认需要人工优化后，按每台电脑 ¥50 提供专属配置、应用与可还原保障。</p><div className="xt-pricing"><div><Activity /><span><b>性能监测 + 报告</b><small>免费</small></span></div><div><Wrench /><span><b>专属人工优化</b><small>¥50 / 台</small></span></div></div><a href="/r/8K3F7A">查看第一份演示报告 <ArrowRight /></a></div>
+        <div className="xt-report-copy"><span>GAMEBOOST / 03</span><h2>免费监测建立信任，<br />专属优化完成交付。</h2><p>玩家回传一次样本，我们给出完整动态报告。确认需要人工优化后，按每台电脑 ¥50 提供专属配置、应用与可还原保障。</p><div className="xt-pricing"><div><Activity /><span><b>性能监测 + 报告</b><small>免费</small></span></div><div><Wrench /><span><b>专属人工优化</b><small>¥50 / 台</small></span></div></div><Link href="/r/8K3F7A">查看第一份演示报告 <ArrowRight /></Link></div>
       </section>
 
-      <footer className="xt-footer"><div className="xt-logo"><span>XT</span><div><b>小同实验室</b><small>XIAOTONG LAB</small></div></div><p>诚实测量 · 清楚解释 · 专属调整</p><div><span>xiaotongcn.mom</span><span>2026</span></div></footer>
+      <SiteFooter />
     </main>
   );
 }

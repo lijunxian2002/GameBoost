@@ -1,7 +1,8 @@
 'use client';
 
-import { Activity, Check, Cpu, Download, FileUp, Gauge, Laptop, MemoryStick, Monitor, ShieldCheck, Thermometer } from 'lucide-react';
+import { Check, Cpu, Download, FileUp, Gauge, Laptop, Monitor, ShieldCheck } from 'lucide-react';
 import { ChangeEvent, useMemo, useState } from 'react';
+import Link from 'next/link';
 
 type Summary = {
   sampleId: string;
@@ -28,6 +29,7 @@ export default function ReportGenerator() {
   const [customer, setCustomer] = useState('玩家朋友');
   const [headline, setHeadline] = useState('平均帧率不低，真正卡在低谷帧稳定性。');
   const [diagnosis, setDiagnosis] = useState('内存压力与间歇性的硬件限制叠加，让画面偶尔出现明显的帧时间尖峰。');
+  const [sampleAuthorized, setSampleAuthorized] = useState(false);
 
   async function loadSample(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -82,12 +84,13 @@ export default function ReportGenerator() {
 
   return (
     <main className="generator-site">
-      <header className="generator-head"><a href="/">XT / 小同实验室</a><span>GAMEBOOST REPORT FOUNDRY</span><b>OWNER TOOL · LOCAL PARSE</b></header>
+      <header className="generator-head"><Link href="/">XT / 小同实验室</Link><span>GAMEBOOST REPORT FOUNDRY</span><b>OWNER TOOL · LOCAL PARSE</b></header>
       <section className="generator-hero"><span>REPORT GENERATOR / P0</span><h1>把回传数据，变成顾客真正看得懂的报告。</h1><p>原始 `.gbsample` 只在当前浏览器读取。先由优化师审阅结论，再生成脱敏 HTML；当前工具不会自动上传原始采样。</p></section>
 
       <section className="generator-grid">
         <div className="generator-input">
-          <label className="sample-drop"><FileUp /><b>拖入或选择 .gbsample</b><span>读取帧时间、硬件遥测与显示拓扑</span><input type="file" accept=".gbsample,application/json" onChange={loadSample} /></label>
+          <label className={`sample-drop ${sampleAuthorized ? '' : 'is-locked'}`}><FileUp /><b>拖入或选择 .gbsample</b><span>读取帧时间、硬件遥测与显示拓扑</span><input type="file" disabled={!sampleAuthorized} accept=".gbsample,application/json" onChange={loadSample} /></label>
+          <label className="sample-consent"><input type="checkbox" checked={sampleAuthorized} onChange={(event) => setSampleAuthorized(event.target.checked)} /><span>我确认已获得样本主体授权；本页当前只在本机浏览器读取样本，公开报告前将再次确认脱敏范围。<Link href="/privacy">查看隐私规则</Link></span></label>
           {error && <p className="generator-error">{error}</p>}
           <div className="privacy-strip"><ShieldCheck /><span><b>隐私规则</b>不发布原始采样、本地路径、完整设备指纹或无关进程。</span></div>
 
