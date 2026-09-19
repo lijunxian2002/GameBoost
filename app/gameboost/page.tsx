@@ -6,9 +6,11 @@ import {
   Cpu,
   Download,
   Gauge,
+  Minus,
   RotateCcw,
   Thermometer,
   Upload,
+  X,
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -18,10 +20,10 @@ type MachineState = 'idle' | 'sampling' | 'captured' | 'profile' | 'applied';
 
 const stateCopy: Record<MachineState, { badge: string; line: string }> = {
   idle: { badge: 'STANDBY', line: '等待实测采样。进入会卡顿的游戏场景后按下 CAPTURE。' },
-  sampling: { badge: 'RECORDING', line: '正在记录帧时间、温度、频率、功耗与限制原因…' },
-  captured: { badge: 'SAMPLE READY', line: '样本已封装。现在导出并回传这份 .gbsample。' },
-  profile: { badge: 'CFG LOADED', line: '专属配置已载入：2 个可还原动作，等待确认。' },
-  applied: { badge: 'OPTIMIZED', line: '专属配置已应用，还原收据已保存在本机。' },
+  sampling: { badge: 'RECORDING', line: '正在记录帧时间 + CPU/GPU/显存/内存/磁盘/限频原因全链路数据…' },
+  captured: { badge: 'SAMPLE READY', line: '样本已封装。导出并回传这份 .gbsample。' },
+  profile: { badge: 'CFG LOADED', line: '专属配置已绑定当前设备、游戏和采样，等待确认。' },
+  applied: { badge: 'OPTIMIZED', line: '专属配置已应用；还原收据保存在本机。' },
 };
 
 export default function Home() {
@@ -78,12 +80,16 @@ export default function Home() {
             <span /><span /><span /><span /><span />
           </div>
 
-          <div className="unit-state">
-            <span className={`state-lamp ${mode === 'sampling' ? 'recording' : mode === 'applied' ? 'ready' : ''}`} />
-            <div>
-              <small>UNIT STATUS</small>
-              <strong>{copy.badge}</strong>
+          <div className="header-console">
+            <div className="unit-state">
+              <span className={`state-lamp ${mode === 'sampling' ? 'recording' : mode === 'applied' ? 'ready' : ''}`} />
+              <div>
+                <small>UNIT STATUS</small>
+                <strong>{copy.badge}</strong>
+              </div>
             </div>
+            <button className="window-key" type="button" aria-label="最小化"><Minus size={13} /></button>
+            <button className="window-key close" type="button" aria-label="关闭"><X size={13} /></button>
           </div>
         </header>
 
@@ -125,22 +131,29 @@ export default function Home() {
               <div className="console-grid">
                 <div className="code-panel">
                   <p><em>[DEVICE]</em></p>
-                  <p><span>platform</span> = <b>&quot;WIN11_LAPTOP&quot;</b></p>
-                  <p><span>fingerprint</span> = <b>&quot;GB-7C21-A9F0&quot;</b></p>
+                  <p><span>platform</span> = <b>&quot;WIN_LAPTOP&quot;</b></p>
+                  <p><span>fingerprint</span> = <b>&quot;7C21A9F0D4B8&quot;</b></p>
                   <p><span>gpu</span> = <b>&quot;RTX_3050_TI_MOBILE&quot;</b></p>
                   <p className="code-gap"><em>[CAPTURE]</em></p>
                   <p><span>target</span> = <b>&quot;project8.exe&quot;</b></p>
                   <p><span>duration</span> = <strong>&quot;{clock}&quot;</strong></p>
                   <p><span>frametime_source</span> = <b>&quot;PRESENTMON&quot;</b></p>
-                  <p className="code-gap"><em>[PROFILE]</em></p>
-                  <p><span>cfg</span> = <strong>&quot;{hasProfile ? 'THERMAL_STABLE_01' : 'WAITING'}&quot;</strong></p>
-                  <p><span>safety</span> = <b>&quot;REVERSIBLE_ONLY&quot;</b></p>
+                  {hasProfile ? <>
+                    <p className="code-gap"><em>[PROFILE]</em></p>
+                    <p><span>cfg</span> = <strong>&quot;BOUND_02&quot;</strong></p>
+                    <p><span>safety</span> = <b>&quot;REVERSIBLE_ONLY&quot;</b></p>
+                  </> : <>
+                    <p className="code-gap"><em>[DIAGNOSTICS]</em></p>
+                    <p><span>cpu_ram</span> = <b>&quot;CPU {activeData ? '73' : '---'}% / RAM {activeData ? '81' : '---'}%&quot;</b></p>
+                    <p><span>vram</span> = <b>&quot;VRAM {activeData ? '3628/4096MB' : '---'}&quot;</b></p>
+                    <p><span>stream</span> = <b>&quot;DISK {activeData ? '44MB/s / GAME 6432MB' : '--- / GAME ---'}&quot;</b></p>
+                  </>}
                 </div>
 
                 <div className="telemetry-panel">
                   <Metric icon={<Gauge size={16} />} label="AVG FPS" value={activeData ? '164.8' : '---'} unit="FPS" />
                   <Metric icon={<Activity size={16} />} label="1% LOW" value={activeData ? '96.4' : '---'} unit="FPS" warn />
-                  <Metric icon={<Thermometer size={16} />} label="GPU TEMP" value={activeData ? '82' : '--'} unit="°C" />
+                  <ThermalMetric active={activeData} />
                   <Metric icon={<Zap size={16} />} label="LIMIT" value={activeData ? 'THERMAL' : 'NONE'} unit="" warn={activeData} />
                 </div>
               </div>
@@ -154,7 +167,7 @@ export default function Home() {
 
             <div className="screen-foot">
               <span>READ-ONLY TELEMETRY</span>
-              <span>NO DRIVER / NO CLOUD</span>
+              <span>NO DRIVER / NO INJECTION</span>
               <span>BUILD P0.13</span>
             </div>
           </section>
@@ -219,12 +232,25 @@ export default function Home() {
           </div>
         </footer>
       </section>
-      <p className="prototype-note">INTERACTIVE UI PROTOTYPE · 点击三个实体键体验状态变化</p>
+      <p className="prototype-note">EXE INTERFACE PREVIEW · 点击三个实体键体验真实工作流</p>
       <section className="console-trust" aria-label="GameBoost 服务边界">
         <div><span>READ BEFORE ACTION</span><b>采样不改系统；CFG 先由真人审核。</b><p>免费报告解释“卡在哪里”。只有确认存在合理改善空间时，才提供收费的专属配置与指导。</p></div>
         <nav><Link href="/service">服务说明</Link><Link href="/privacy">隐私政策</Link><Link href="/terms">用户协议</Link><Link href="/data-rights">数据与投诉</Link></nav>
       </section>
     </main>
+  );
+}
+
+function ThermalMetric({ active }: { active: boolean }) {
+  return (
+    <div className="metric thermal-metric">
+      <div className="metric-label"><Thermometer size={16} /><span>GPU / CPU TEMP · LIVE</span></div>
+      <div className="thermal-values">
+        <b>GPU {active ? '82°C' : 'N/A'}</b>
+        <b className={active ? 'warn' : ''}>CPU {active ? '88°C' : 'N/A'}</b>
+      </div>
+      <i><span style={{ width: active ? '88%' : '8%' }} /></i>
+    </div>
   );
 }
 
